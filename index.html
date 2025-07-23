@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Synthetic Persona Survey</title>
-        <link
+    <link
     rel="icon"
     type="image/svg+xml"
     href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTUiIGZpbGw9IiMyNTYzZWIiLz48cGF0aCBmaWxsPSIjZmZmIiBkPSJtMTYgNyAyIDcgNyAyLTcgMi0yIDctMi03LTctMiA3LTJaIi8+PC9zdmc+" />
@@ -43,7 +43,7 @@
             <div class="col-12 text-center">
                 <div class="card border-0 bg-gradient shadow-sm mb-3">
                     <div class="card-body py-3">
-                        <h1 class="display-6 fw-bold text-primary">Synthetic Persona Survey Demo</h1>
+                        <h1 class="display-6 fw-bold text-primary">Synthetic Persona Survey</h1>
                         <p class="lead text-muted small">Generate synthetic personas, run surveys through LLMs, and analyze results</p>
                     </div>
                 </div>
@@ -107,11 +107,20 @@
                                 <div class="row mb-2">
                                     <div class="col-md-6">
                                         <label for="modelSelect" class="form-label fw-semibold small">Model</label>
-                                        <select class="form-select model-select" id="modelSelect"></select>
+                                        <select class="form-select model-select" id="modelSelect">
+                                            <option value="">Configure LLM Provider first</option>
+                                        </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label for="apiKeyInput" class="form-label fw-semibold small">OpenRouter API Key</label>
-                                        <input type="password" class="form-control" id="apiKeyInput" placeholder="Enter your OpenRouter API key">
+                                        <label class="form-label fw-semibold small">LLM Provider Configuration</label>
+                                        <div class="input-group">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="configureLlmBtn">
+                                                <i class="bi bi-gear-fill me-1"></i>Configure LLM Provider
+                                            </button>
+                                            <span class="input-group-text" id="providerStatus">
+                                                <i class="bi bi-x-circle-fill text-danger"></i>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -174,18 +183,7 @@
                     </div>
                 </div>
             </div>
-            <!-- Template for model options to be cloned -->
-            <template id="modelOptionsTemplate">
-                <option value="openai/gpt-4.1-mini" selected>OpenAI GPT-4.1-mini</option>
-                <option value="openai/gpt-4.1-nano">OpenAI GPT-4.1-nano</option>
-                <option value="anthropic/claude-3.5-sonnet">Anthropic Claude 3.5 Sonnet</option>
-                <option value="anthropic/claude-3.7-sonnet">Anthropic Claude 3.7 Sonnet</option>
-                <option value="anthropic/claude-3-haiku">Anthropic Claude 3.5 Haiku</option>
-                <option value="mistralai/mistral-large">Mistral Large</option>
-                <option value="meta-llama/llama-3-70b-instruct">Meta Llama 3 70B</option>
-                <option value="deepseek/deepseek-chat">DeepSeek V3</option>
-                <option value="google/gemini-2.0-flash-001">Gemini Flash 2.0</option>
-            </template>        
+          
             <!-- STEP 2: Run Survey -->
             <div class="tab-pane fade" id="survey" role="tabpanel">
                 <div class="row">
@@ -201,7 +199,6 @@
 Do you prefer to receive fuel or service offers through: (App / SMS / Email / In-store Signage)
 When are you most likely to refuel your vehicle?(before 9 AM / 9 AM – 3 PM / after 3 PM / Only on weekends)
 If Company introduced a bundled service that includes fuel, a free oil check, and coffee, how appealing would that be to you?(I would use it regularly / I would try it once / depends on the price / I prefer simpler fuel-only options)
-
 </textarea>
                                 </div>
                                 
@@ -218,7 +215,9 @@ If Company introduced a bundled service that includes fuel, a free oil check, an
                                 
                                 <div class="mb-2">
                                     <label for="surveyModelSelect" class="form-label fw-semibold small">Model</label>
-                                    <select class="form-select model-select" id="surveyModelSelect"></select>
+                                    <select class="form-select model-select" id="surveyModelSelect">
+                                        <option value="">Configure LLM Provider first</option>
+                                    </select>
                                 </div>
                                 
                                 <div class="d-grid">
@@ -261,7 +260,7 @@ If Company introduced a bundled service that includes fuel, a free oil check, an
                                 
                                 <div class="d-flex justify-content-between">
                                     <button id="downloadSurveyBtn" class="btn btn-outline-success btn-sm" disabled><i class="bi bi-download me-1"></i>Download Results (JSON)</button>
-                                    <button id="downloadSurveyCsvBtn" class="btn btn-secondary" disabled>Download Results (CSV)</button>
+                                    <button id="downloadSurveyCsvBtn" class="btn btn-secondary btn-sm" disabled>Download Results (CSV)</button>
                                     <button id="nextToResultsBtn" class="btn btn-warning btn-sm" disabled><i class="bi bi-arrow-right me-1"></i>Next: View Analysis</button>
                                 </div>
                             </div>
@@ -270,67 +269,69 @@ If Company introduced a bundled service that includes fuel, a free oil check, an
                 </div>
             </div>
             
-<!-- STEP 3: Results & Analysis -->
-<div class="tab-pane fade" id="results" role="tabpanel">
-    <div class="row mb-3">
-        <div class="col-md-2">
-            <!-- Filters Card - Positioned on the left -->
-            <div class="card shadow-sm mb-3">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="fs-6 mb-0"><i class="bi bi-funnel-fill me-2"></i>Filter Results</h3>
-                </div>
-                <div class="card-body bg-body-tertiary">
-                    <div id="filterControls">
-                        <p class="text-muted small"><i class="bi bi-info-circle me-1"></i>Filters will be dynamically generated based on persona fields</p>
+            <!-- STEP 3: Results & Analysis -->
+            <div class="tab-pane fade" id="results" role="tabpanel">
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <!-- Filters Card - Positioned on the left -->
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-header bg-primary text-white">
+                                <h3 class="fs-6 mb-0"><i class="bi bi-funnel-fill me-2"></i>Filter Results</h3>
+                            </div>
+                            <div class="card-body bg-body-tertiary">
+                                <div id="filterControls">
+                                    <p class="text-muted small"><i class="bi bi-info-circle me-1"></i>Filters will be dynamically generated based on persona fields</p>
+                                </div>
+                                <div class="d-flex justify-content-center mt-2">
+                                    <button id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-center mt-2">
-                        <button id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+                    
+                    <div class="col-md-10">
+                        <!-- Charts Container - Takes remaining space -->
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-header bg-success text-white">
+                                <h3 class="fs-6 mb-0"><i class="bi bi-pie-chart-fill me-2"></i>Survey Results Charts</h3>
+                            </div>
+                            <div class="card-body bg-body-tertiary">
+                                <div id="chartsContainer" class="row">
+                                    <p class="text-muted small"><i class="bi bi-info-circle me-1"></i>Charts will appear here once survey results are available</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Results Table Card -->
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                                <h3 class="fs-6 mb-0"><i class="bi bi-table me-2"></i>Results Table</h3>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                    <table id="resultsTable" class="table table-sm table-striped table-hover mb-0">
+                                        <thead class="table-dark">
+                                            <tr id="resultsTableHeader">
+                                                <th>No data available</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="resultsTableBody">
+                                            <tr>
+                                                <td>Run the survey to see results</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer py-2">
+                                <button id="downloadResultsBtn" class="btn btn-success btn-sm" disabled><i class="bi bi-download me-1"></i>Download Complete Results (CSV)</button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-10">
-            <!-- Charts Container - Takes remaining space -->
-            <div class="card shadow-sm mb-3">
-                <div class="card-header bg-success text-white">
-                    <h3 class="fs-6 mb-0"><i class="bi bi-pie-chart-fill me-2"></i>Survey Results Charts</h3>
-                </div>
-                <div class="card-body bg-body-tertiary">
-                    <div id="chartsContainer" class="row">
-                        <p class="text-muted small"><i class="bi bi-info-circle me-1"></i>Charts will appear here once survey results are available</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Results Table Card -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                    <h3 class="fs-6 mb-0"><i class="bi bi-table me-2"></i>Results Table</h3>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table id="resultsTable" class="table table-sm table-striped table-hover mb-0">
-                            <thead class="table-dark">
-                                <tr id="resultsTableHeader">
-                                    <th>No data available</th>
-                                </tr>
-                            </thead>
-                            <tbody id="resultsTableBody">
-                                <tr>
-                                    <td>Run the survey to see results</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer py-2">
-                    <button id="downloadResultsBtn" class="btn btn-success btn-sm" disabled><i class="bi bi-download me-1"></i>Download Complete Results (CSV)</button>
                 </div>
             </div>
         </div>
     </div>
-</div>
     
     <!-- Modal for displaying errors -->
     <div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
@@ -349,9 +350,10 @@ If Company introduced a bundled service that includes fuel, a free oil check, an
             </div>
         </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@gramex/ui@0.3.1/dist/dark-theme.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

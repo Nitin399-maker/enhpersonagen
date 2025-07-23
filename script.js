@@ -1,3 +1,6 @@
+// Import the bootstrap-llm-provider library
+import { openaiConfig } from "https://cdn.jsdelivr.net/npm/bootstrap-llm-provider@1";
+
 // Global variables to store data
 let personas = [];
 let surveyResults = [];
@@ -5,31 +8,69 @@ let surveyQuestions = [];
 let surveyOptions = [];
 let charts = [];
 let generatedCode = '';
+let llmConfig = null; // Store LLM configuration
+
 // DOM elements and initialization
 document.addEventListener('DOMContentLoaded', function() {
     const segmentSelect = document.getElementById('segmentSelect');
     const segmentPrompt = document.getElementById('segmentPrompt');
     const fieldsList = document.getElementById('fieldsList');
     let segmentData = {};
-    // Load JSON file
+    
+    // Load JSON file - with fallback default data if segments.json is not available
     fetch('segments.json')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('segments.json not found');
+            }
+            return response.json();
+        })
         .then(data => {
             segmentData = data;
-            // Populate default
+            loadSegmentData();
+        })
+        .catch(error => {
+            console.warn('segments.json not found, using default data');
+            // Default segment data
+            segmentData = {
+                segment1: {
+                    description: "Value-seeking commuters who prioritize cost-effectiveness and convenience in their daily fuel purchases. They are price-conscious consumers who compare fuel prices across different stations and often use apps or loyalty programs to find the best deals. They typically refuel during regular commuting hours and prefer locations that are convenient to their daily routes.",
+                    fields: "Name\nAge\nGender\nOccupation\nIncome Level\nVehicle Type\nDaily Commute Distance\nFuel Budget per Month\nPreferred Fuel Station Brand\nUses Fuel Apps\nLoyalty Program Member"
+                },
+                segment2: {
+                    description: "Brand-loyal motorists who consistently choose specific fuel station brands based on trust, quality perception, and brand reputation. They value consistent service quality and are willing to pay slightly more for their preferred brand. They often have premium vehicles and choose premium fuel options.",
+                    fields: "Name\nAge\nGender\nOccupation\nIncome Level\nVehicle Type\nPreferred Brand\nYears of Brand Loyalty\nFuel Type Preference\nService Expectations\nWillingness to Pay Premium"
+                },
+                segment3: {
+                    description: "Independent tradespeople and business owners who require reliable fuel services for their work vehicles. They often purchase fuel in larger quantities, need convenient payment options, and value additional services like vehicle maintenance. They prioritize efficiency and reliability over price.",
+                    fields: "Name\nAge\nGender\nBusiness Type\nFleet Size\nMonthly Fuel Expense\nPayment Method Preference\nRequires Additional Services\nRefueling Frequency\nLocation Requirements"
+                },
+                segment4: {
+                    description: "DIY car enthusiasts who are knowledgeable about vehicle maintenance and fuel quality. They often have performance vehicles or classic cars and are concerned about fuel quality and additives. They may perform their own maintenance and are interested in specialized products.",
+                    fields: "Name\nAge\nGender\nVehicle Type\nMaintenance Knowledge Level\nFuel Quality Concerns\nPerformance Modifications\nFrequency of Vehicle Projects\nPreferred Fuel Octane\nUses Fuel Additives"
+                }
+            };
+            loadSegmentData();
+        });
+
+    function loadSegmentData() {
+        // Populate default
+        const selectedSegment = segmentData[segmentSelect.value];
+        segmentPrompt.value = selectedSegment.description;
+        fieldsList.value = selectedSegment.fields;
+        
+        // Handle segment changes
+        segmentSelect.addEventListener('change', () => {
             const selectedSegment = segmentData[segmentSelect.value];
             segmentPrompt.value = selectedSegment.description;
             fieldsList.value = selectedSegment.fields;
-            // Handle segment changes
-            segmentSelect.addEventListener('change', () => {
-                const selectedSegment = segmentData[segmentSelect.value];
-                segmentPrompt.value = selectedSegment.description;
-                fieldsList.value = selectedSegment.fields;
-            });
-        })
+        });
+    }
+    
     // Hide sections initially
     document.getElementById('generatedCodeSection').style.display = 'none';
     document.getElementById('personasSection').style.display = 'none';
+    
     // Initialize sliders with their display values
     document.getElementById('numPersonas').addEventListener('input', function() {
         document.getElementById('numPersonasValue').textContent = this.value;
@@ -46,24 +87,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('surveyTemperature').addEventListener('input', function() {
         document.getElementById('surveyTemperatureValue').textContent = this.value;
     });
-    // Initialize model select dropdowns with specific options for each section
-    const personaModelSelect = document.getElementById('modelSelect');
-    const surveyModelSelect = document.getElementById('surveyModelSelect');
     
-    // Set options for persona generation (all models)
-    personaModelSelect.innerHTML = document.getElementById('modelOptionsTemplate').innerHTML;
+    // Configure LLM Provider button
+    document.getElementById('configureLlmBtn').addEventListener('click', configureLlmProvider);
     
-    // Set options for survey (only GPT and Gemini models)
-    const surveyModels = [
-        { value: 'openai/gpt-4.1-mini', label: 'GPT-4.1-mini' },
-        { value: 'openai/gpt-4.1-nano', label: 'GPT-4.1-nano' },
-        { value: 'google/gemini-2.0-flash-001', label: 'Gemini Flash 2.0' }
-    ];
-    
-    surveyModelSelect.innerHTML = surveyModels
-        .map(model => `<option value="${model.value}">${model.label}</option>`)
-        .join('');
-        
     // Button event listeners
     document.getElementById('generateCodeBtn').addEventListener('click', async function() {
         await generatePersonaCode();
@@ -95,13 +122,216 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('resetFiltersBtn').addEventListener('click', resetFilters);
     document.getElementById('downloadResultsBtn').addEventListener('click', () => {
     downloadCsv(surveyResults, 'complete_survey_results.csv', "No results to download");});
+    
+    // Initialize LLM configuration on page load
+    initializeLlmConfig();
 });
+
+// LLM Provider Configuration
+async function configureLlmProvider() {
+    try {
+        llmConfig = await openaiConfig({
+            show: true,
+            defaultBaseUrls: [
+                "https://llmfoundry.straivedemo.com/openai/v1",
+                "https://llmfoundry.straive.com/openai/v1",,
+                "https://aipipe.org/api/v1",
+                "https://openrouter.ai/api/v1",
+                "https://api.openai.com/v1"
+            ],
+            title: "Configure LLM Provider",
+            baseURLLabel: "API Base URL",
+            apiKeyLabel: "API Key",
+            buttonLabel: "Save & Test Connection"
+        });
+        
+        updateProviderStatus(true);
+        updateModelSelects();
+        enableButtons();
+    } catch (error) {
+        console.error('LLM configuration failed:', error);
+        showError(`Failed to configure LLM provider: ${error.message}`);
+        updateProviderStatus(false);
+    }
+}
+
+async function initializeLlmConfig() {
+    try {
+        // Try to get existing config without showing modal
+        llmConfig = await openaiConfig({
+            show: false,
+            defaultBaseUrls: [
+                "https://llmfoundry.straivedemo.com/openai/v1",
+                "https://llmfoundry.straive.com/openai/v1",
+                "https://aipipe.org/api/v1",
+                "https://openrouter.ai/api/v1",
+                "https://api.openai.com/v1"
+            ]
+        });
+        
+        updateProviderStatus(true);
+        updateModelSelects();
+        enableButtons();
+    } catch (error) {
+        // No existing config or config invalid - user needs to configure
+        updateProviderStatus(false);
+        updateModelSelects();
+    }
+}
+
+function updateProviderStatus(isConfigured) {
+    const statusElement = document.getElementById('providerStatus');
+    if (isConfigured && llmConfig) {
+        statusElement.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+        statusElement.title = `Connected to ${llmConfig.baseURL}`;
+    } else {
+        statusElement.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+        statusElement.title = 'LLM Provider not configured';
+    }
+}
+
+function updateModelSelects() {
+    const personaModelSelect = document.getElementById('modelSelect');
+    const surveyModelSelect = document.getElementById('surveyModelSelect');
+    
+    if (llmConfig && llmConfig.models && llmConfig.models.length > 0) {
+        console.log('Available models:', llmConfig.models); // Debug log
+        
+        // Handle different API response formats
+        let modelOptions = '';
+        
+        llmConfig.models.forEach(model => {
+            let modelId = '';
+            let modelName = '';
+            
+            // Handle different model object structures
+            if (typeof model === 'string') {
+                // Simple string array
+                modelId = model;
+                modelName = model;
+            } else if (model && model.id) {
+                // Object with id property
+                modelId = model.id;
+                modelName = model.name || model.id;
+            } else if (model && model.model) {
+                // Object with model property (some APIs use this)
+                modelId = model.model;
+                modelName = model.name || model.model;
+            }
+            
+            if (modelId) {
+                modelOptions += `<option value="${modelId}">${modelName}</option>`;
+            }
+        });
+        
+        if (modelOptions) {
+            personaModelSelect.innerHTML = modelOptions;
+            
+            // For survey, try to filter for models that typically support structured output
+            // If no suitable models found, use all models
+            let surveyModelOptions = '';
+            
+            llmConfig.models.forEach(model => {
+                let modelId = '';
+                let modelName = '';
+                
+                if (typeof model === 'string') {
+                    modelId = model;
+                    modelName = model;
+                } else if (model && model.id) {
+                    modelId = model.id;
+                    modelName = model.name || model.id;
+                } else if (model && model.model) {
+                    modelId = model.model;
+                    modelName = model.name || model.model;
+                }
+                
+                if (modelId) {
+                    // Check if this model likely supports structured output
+                    const isCompatible = 
+                        modelId.includes('gpt') || 
+                        modelId.includes('gemini') ||
+                        modelId.includes('claude') ||
+                        modelId.includes('openai') ||
+                        !modelId.includes('vision') ||
+                        !modelId.includes('whisper') ||
+                        !modelId.includes('tts') ||
+                        !modelId.includes('dall-e');
+                    
+                    if (isCompatible) {
+                        surveyModelOptions += `<option value="${modelId}">${modelName}</option>`;
+                    }
+                }
+            });
+            
+            // If no compatible models found, use all models
+            surveyModelSelect.innerHTML = surveyModelOptions || modelOptions;
+        } else {
+            personaModelSelect.innerHTML = '<option value="">No models available</option>';
+            surveyModelSelect.innerHTML = '<option value="">No models available</option>';
+        }
+    } else {
+        console.log('No models in config:', llmConfig); // Debug log
+        personaModelSelect.innerHTML = '<option value="">Configure LLM Provider first</option>';
+        surveyModelSelect.innerHTML = '<option value="">Configure LLM Provider first</option>';
+    }
+}
+
+function enableButtons() {
+    const hasConfig = llmConfig && llmConfig.baseURL && llmConfig.apiKey;
+    // Enable/disable buttons based on configuration
+    // The generateCodeBtn will be enabled if we have LLM config
+    // Other buttons depend on previous steps being completed
+}
+
+// Generic OpenAI API call function
+async function callOpenAIAPI(messages, temperature = 1, responseFormat = null) {
+    if (!llmConfig) {
+        throw new Error('LLM provider not configured. Please configure it first.');
+    }
+    
+    const model = responseFormat ? 
+        document.getElementById('surveyModelSelect').value : 
+        document.getElementById('modelSelect').value;
+    
+    if (!model) {
+        throw new Error('Please select a model');
+    }
+    
+    const requestBody = {
+        model: model,
+        temperature: temperature,
+        messages: messages
+    };
+    
+    if (responseFormat) {
+        requestBody.response_format = responseFormat;
+    }
+    
+    const response = await fetch(`${llmConfig.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${llmConfig.apiKey}`,
+            'HTTP-Referer': window.location.href,
+            'X-Title': 'Synthetic Persona Survey'
+        },
+        body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+    }
+    
+    return await response.json();
+}
+
 // STEP 1: Generate Persona Code
 async function generatePersonaCode() {
     try {
-        const apiKey = document.getElementById('apiKeyInput').value;
-        if (!apiKey) {
-            showError("Please enter your OpenRouter API key");
+        if (!llmConfig) {
+            showError("Please configure your LLM provider first");
             return;
         }
         
@@ -109,8 +339,6 @@ async function generatePersonaCode() {
         const fieldsList = document.getElementById('fieldsList').value.split('\n').filter(line => line.trim() !== '');
         const numPersonas = parseInt(document.getElementById('numPersonas').value);
         const temperature = parseFloat(document.getElementById('personaTemperature').value);
-        const model = document.getElementById('modelSelect').value;
-        
         
         // Show progress indicator
         const progressBar = document.getElementById('generationProgress');
@@ -121,7 +349,7 @@ async function generatePersonaCode() {
         
         // Prepare prompt for the LLM
         const prompt = `
-        Write a JavaScript code to  generate REALISTIC fake data of ${numPersonas} rows of persona based on the following profile and fields provided
+        Write a JavaScript code to generate REALISTIC fake data of ${numPersonas} rows of persona based on the following profile and fields provided
         When listing possible values for fields, go beyond the examples above to be FULLY comprehensive.
         When picking values, use realistic distributions for each value based on real-life.
         <PROFILE>
@@ -142,29 +370,10 @@ async function generatePersonaCode() {
         `;
         
         // Call the API
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': window.location.href,
-                'X-Title': 'Synthetic Persona Survey'
-            },
-            body: JSON.stringify({
-                model: model,
-                temperature: temperature,
-                messages: [
-                    { role: "user", content: prompt }
-                ]
-            })
-        });
+        const data = await callOpenAIAPI([
+            { role: "user", content: prompt }
+        ], temperature);
         
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
-        }
-        
-        const data = await response.json();
         const content = data.choices[0].message.content;
         
         // Extract code from response
@@ -186,10 +395,10 @@ async function generatePersonaCode() {
         // Update progress
         progressBarInner.style.width = '100%';
         progressBarInner.textContent = 'Code generated';
-        // Hide the progress bar after a short delay (optional)
+        // Hide the progress bar after a short delay
         setTimeout(() => {
             progressBar.style.display = 'none';
-        }, 1000); // hides after 1 second, adjust as needed
+        }, 1000);
         
         // Enable execute button
         document.getElementById('executeCodeBtn').disabled = false;
@@ -201,6 +410,7 @@ async function generatePersonaCode() {
         progressBar.classList.add('d-none');
     }
 }
+
 function executePersonaCode() {
     try {
         // Show progress
@@ -240,10 +450,10 @@ function executePersonaCode() {
         // Update progress
         progressBarInner.style.width = '100%';
         progressBarInner.textContent = `${personas.length} personas generated`;
-        // Hide the progress bar after a short delay (optional)
+        // Hide the progress bar after a short delay
         setTimeout(() => {
             progressBar.style.display = 'none';
-        }, 1000); // hides after 1 second, adjust as needed
+        }, 1000);
         
         // Display personas in the table
         displayPersonas();
@@ -260,6 +470,7 @@ function executePersonaCode() {
         progressBar.classList.add('d-none');
     }
 }
+
 function displayPersonas() {
     if (personas.length === 0) {
         return;
@@ -298,6 +509,7 @@ function displayPersonas() {
         tableBody.appendChild(tr);
     });
 }
+
 function downloadCsv(data, filename, errorMessage) {
     if (!data || data.length === 0) {
         showError(errorMessage || "No data to download");
@@ -335,6 +547,7 @@ function downloadCsv(data, filename, errorMessage) {
     link.click();
     document.body.removeChild(link);
 }
+
 // STEP 2: Run Survey
 function parseQuestions() {
     const questionsText = document.getElementById('surveyQuestions').value;
@@ -397,6 +610,7 @@ function parseQuestions() {
     });
     return { surveyQuestions, surveyOptions };
 }
+
 function generateJsonSchema() {
     const { surveyQuestions, surveyOptions } = parseQuestions();
     
@@ -440,6 +654,7 @@ function generateJsonSchema() {
     
     return schema;
 }
+
 async function runSurvey() {
     try {
         if (personas.length === 0) {
@@ -447,9 +662,8 @@ async function runSurvey() {
             return;
         }
         
-        const apiKey = document.getElementById('apiKeyInput').value;
-        if (!apiKey) {
-            showError("Please enter your OpenRouter API key");
+        if (!llmConfig) {
+            showError("Please configure your LLM provider first");
             return;
         }
         
@@ -466,7 +680,6 @@ async function runSurvey() {
             personas.length
         );
         const temperature = parseFloat(document.getElementById('surveyTemperature').value);
-        const model = document.getElementById('surveyModelSelect').value;
         
         // Select random participants without duplicates
         const selectedIndices = selectRandomIndices(personas.length, numParticipants);
@@ -498,7 +711,7 @@ async function runSurvey() {
             if(i==participants.length-1){
                 setTimeout(() => {
                         progressBar.style.display = 'none';
-                }, 1000); // hides after 1 second, adjust as needed
+                }, 1000);
             }
             
             // Create a system prompt describing the persona
@@ -527,32 +740,13 @@ IMPORTANT: Your profile should strongly influence your choices. Different person
                 schema: schema
             }
             };
-            // Call the API
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                    'HTTP-Referer': window.location.href,
-                    'X-Title': 'Synthetic Persona Survey'
-                },
-                body: JSON.stringify({
-                    model: model,
-                    temperature: temperature,
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: `Please answer the following survey questions by choosing one of the options(enum). For each answer, provide a detailed reasoning explaining WHY you selected that option based on your persona's characteristics. you must respond with valid JSON only, that must use double quotes for all keys and string values, include commas between all key-value pairs, contain no trailing commas with no extra text or markdown outside the JSON object, it must have same keys that is defined in the schema, include all required fields.\n\n Questions:\n${questionsPrompt}` }
-                    ],
-                    response_format: responseFormat
-                })
-            });
             
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`API Error for participant ${i+1}: ${errorData.error?.message || response.statusText}`);
-            }
+            // Call the API using our generic function
+            const data = await callOpenAIAPI([
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Please answer the following survey questions by choosing one of the options(enum). For each answer, provide a detailed reasoning explaining WHY you selected that option based on your persona's characteristics. you must respond with valid JSON only, that must use double quotes for all keys and string values, include commas between all key-value pairs, contain no trailing commas with no extra text or markdown outside the JSON object, it must have same keys that is defined in the schema, include all required fields.\n\n Questions:\n${questionsPrompt}` }
+            ], temperature, responseFormat);
             
-            const data = await response.json();
             const content = data.choices[0].message.content;
             
             // Parse the JSON response
@@ -613,6 +807,7 @@ IMPORTANT: Your profile should strongly influence your choices. Different person
         progressBar.classList.add('d-none');
     }
 }
+
 function selectRandomIndices(max, count) {
     // Function to randomly select 'count' indices from 0 to max-1 without duplicates
     const indices = Array.from({ length: max }, (_, i) => i);
@@ -626,6 +821,7 @@ function selectRandomIndices(max, count) {
     // Take the first 'count' elements
     return indices.slice(0, count);
 }
+
 function downloadSurveyJson() {
     if (surveyResults.length === 0) {
         showError("No survey results to download");
@@ -644,6 +840,7 @@ function downloadSurveyJson() {
     link.click();
     document.body.removeChild(link);
 }
+
 // STEP 3: Results Analysis and Visualization
 function renderCharts() {
     if (surveyResults.length === 0) {
@@ -895,6 +1092,7 @@ function updateCharts(filteredResults) {
         }
     });
 }
+
 function resetFilters() {
     // Reset all filter controls to "All"
     const filterControls = document.querySelectorAll('.filter-control');
@@ -905,6 +1103,7 @@ function resetFilters() {
     // Apply filters (which will now be empty)
     applyFilters();
 }
+
 function populateResultsTable(data = null) {
     const tableData = data || surveyResults;
     if (tableData.length === 0) return;
@@ -959,6 +1158,7 @@ function populateResultsTable(data = null) {
         tableBody.appendChild(tr);
     });
 }
+
 // Utility functions
 function showError(message) {
     const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
